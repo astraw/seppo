@@ -1,6 +1,6 @@
 # seppo.py
 """simple embarrassingly parallel python"""
-import sys, math, time
+import sys, math, time, threading
 
 import Pyro.core
 import Pyro.naming
@@ -20,12 +20,32 @@ Pyro.config.PYRO_DETAILED_TRACEBACK = 1
 Pyro.config.PYRO_PRINT_REMOTE_TRACEBACK = 1
 Pyro.config.PYRO_NS_DEFAULTGROUP=':seppo'
 
-class SeppoWorker(Pyro.core.ObjBase):
-    def register_done_callback( self, func, val_list, done_callback_proxy ):
-        results = [func(v) for v in val_list]
-        done_callback_proxy.done( results )
+class SeppoError(Exception):
+    pass
 
-def start_seppo_enslaved_server(hostname=None,port=9876):
+class SeppoNoWorkersError(SeppoError):
+    pass
+
+def worker_thread_func( func, val_list, done_callback_proxy, debug=0):
+    if debug: print 'working...'
+    results = [func(v) for v in val_list]
+    if debug: print 'done with work, worker thread finishing'
+    done_callback_proxy.done( results )
+
+class SeppoWorker(Pyro.core.ObjBase):
+    def register_done_callback( self, func, val_list, done_callback_proxy, debug=0 ):
+        if debug: print 'received work request, staring worker thread...'
+        worker_thread = threading.Thread(target=worker_thread_func,
+                                         args=(func,
+                                               val_list,
+                                               done_callback_proxy,
+                                               debug),
+                                         )
+        worker_thread.setDaemon(True)
+        worker_thread.start()
+        if debug: print 'worker thread started'
+        
+def start_seppo_enslaved_server(hostname=None,port=9876,debug=0):
     if hostname is None:
         hostname = ''
     
@@ -33,7 +53,9 @@ def start_seppo_enslaved_server(hostname=None,port=9876):
     # locate the NS
     daemon = Pyro.core.Daemon()
     locator = Pyro.naming.NameServerLocator()
+    if debug: print 'seppo enslaved server getting Pyro Name Server...'
     ns = locator.getNS()
+    if debug: print 'seppo enslaved server found Pyro Name Server'
     # make sure our namespace group exists
     try:
         ns.createGroup(Pyro.config.PYRO_NS_DEFAULTGROUP)
@@ -48,27 +70,27 @@ def start_seppo_enslaved_server(hostname=None,port=9876):
 
     # enter the service loop.
     try:
-            # daemon.setTimeout(5)
-            daemon.requestLoop()
-    except KeyboardInterrupt:
-            # allow shut down gracefully
-            pass
-    daemon.disconnect(obj)
-    daemon.shutdown()
+        daemon.requestLoop()
+    finally:
+        daemon.disconnect(obj)
+        daemon.shutdown()
 
 class SeppoDoneCallbackListener(Pyro.core.ObjBase):
     def done(self,results):
         self.seppo_results = results
 
 class SeppoPyroProxyHolder:
-    def __init__(self):
+    def __init__(self,debug=0):
         Pyro.core.initClient(banner=0)
+        self.debug = debug
         self.refind_workers()
 
     def refind_workers(self):
 	# locate the NS
 	locator = Pyro.naming.NameServerLocator()
+        if self.debug: print 'client getting Pyro Name Server...'
 	ns = locator.getNS()
+        if self.debug: print 'got Pyro Name Server'
 
         #self.worker_list = ns.list(Pyro.config.PYRO_NS_DEFAULTGROUP)
         vts = ns.list(Pyro.config.PYRO_NS_DEFAULTGROUP)
@@ -78,6 +100,7 @@ class SeppoPyroProxyHolder:
                 names.append( v )
         self.worker_list = [ ns.resolve(':seppo.'+n).getProxy() for n in names ]
         self.n_workers = len(self.worker_list)
+        if self.debug: print '%d worker processes available'%(self.n_workers,)
 
 class SeppoClientServer:
     def __init__(self):
@@ -89,10 +112,14 @@ class SeppoClientServer:
 seppo_cs = SeppoClientServer()
 
 seppo_pph = None
-def map_parallel( func, val_list ):
+def map_parallel( func, val_list ,debug=0 ):
     global seppo_pph, seppo_cs
     if seppo_pph is None:
         seppo_pph = SeppoPyroProxyHolder()
+    seppo_pph.debug=debug
+
+    if seppo_pph.n_workers == 0:
+        raise SeppoNoWorkersError()
         
     # divvy up val_list
     stop_idx = 0
@@ -114,16 +141,26 @@ def map_parallel( func, val_list ):
         seppo_cs.daemon.connect(seppo_dcl)
         this_val_list = val_list[start_idx:stop_idx]
         worker_proxy = seppo_pph.worker_list[i]
-        worker_proxy._setOneway(['register_done_callback'])
+        #worker_proxy._setOneway(['register_done_callback'])
+        if debug: print 'registering done callback with server(s)...'
         worker_proxy.register_done_callback( func,
                                              this_val_list,
-                                             seppo_dcl.getProxy() )
+                                             seppo_dcl.getProxy(),
+                                             debug=debug)
+        if debug: print 'returned from register commnad (oneway, so no guarantee)'
         # remember my callback functions
         callbacks.append( seppo_dcl )
         
     while 1:
         # handle commands
+        if debug: print 'awaiting done callback(s)...'
+        
+        # If done callbacks never come, check to make sure func
+        # signature matches (especially number of arguments). XXX
+        # TODO: should figure how to raise exception in this case.
+        
         seppo_cs.daemon.handleRequests()
+        if debug: print 'checking...'            
 
         # check to see if we're done
         finished = True
@@ -131,11 +168,13 @@ def map_parallel( func, val_list ):
             if not hasattr( seppo_dcl, 'seppo_results'):
                 finished = False
         if finished:
+            if debug: print 'done'
             results = []
             for seppo_dcl in callbacks:
                 results.extend( seppo_dcl.seppo_results )
                 seppo_cs.daemon.disconnect(seppo_dcl)
             return results
+        if debug: print 'not done'
     
 def map_parallel_serial( func, val_list ):
     """for testing, same interface as map_parallel"""
