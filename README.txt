@@ -70,7 +70,8 @@ The sequence to run this example:
  * Run the server(s) (``python serv_a_process.py``)
  * Run the client (``python simple.py``)
 
-The above should produce output something like if there are 2 servers running::
+The above should produce output something like the following if there
+are 2 servers running::
 
   $ python simple.py
 
