@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name="seppo",
-    version="20051107",
+    version="20051109",
     license="BSD",
     author="Andrew Straw",
     author_email="astraw@caltech.edu",

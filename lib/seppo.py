@@ -140,11 +140,15 @@ class SeppoClientServer:
         locator = Pyro.naming.NameServerLocator()
         NS = locator.getNS()
 	self.daemon.useNameServer(NS)
-seppo_cs = SeppoClientServer()
-
+        
+seppo_cs = None
 seppo_pph = None
+
 def map_parallel( func, val_list ,debug=0 ):
     global seppo_pph, seppo_cs
+
+    if seppo_cs is None:
+        seppo_cs = SeppoClientServer()
     if seppo_pph is None:
         seppo_pph = SeppoPyroProxyHolder()
     seppo_pph.debug=debug

@@ -96,8 +96,10 @@ Grab it from the `download directory`_.
 
 .. _`download directory`: http://www.its.caltech.edu/~astraw/seppo-download/
 
-Release 20051107
-````````````````
+There is an `online changelog`_ and CHANGELOG.txt in the source
+distribution describing each release.
+
+.. _`online changelog`: http://www.its.caltech.edu/~astraw/seppo-changes.html
 
 Seppo works as described above, but hasn't yet seen much use.  This
 should be considered a very alpha version, and was released to the

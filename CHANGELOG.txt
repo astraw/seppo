@@ -1,0 +1,10 @@
+version 20051109
+````````````````
+
+ * Added CHANGELOG.txt (this file) to source distribution
+ * Don't start SeppoClientServer until first call to map_parallel
+
+version 20051107
+````````````````
+
+ * Initial release. 
