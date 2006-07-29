@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="seppo",
-    version="20051211",
+    version="0.1",
     license="BSD",
     author="Andrew Straw",
     author_email="strawman@astraw.com",
