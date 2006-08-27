@@ -8,7 +8,6 @@ setup(
     author_email="strawman@astraw.com",
     url="http://www.its.caltech.edu/~astraw/seppo.html",
     
-    package_dir = {'seppo' : 'lib/seppo'},
     packages = ['seppo'],
 
     entry_points = {'console_scripts': [
