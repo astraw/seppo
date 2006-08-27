@@ -40,7 +40,7 @@ import Pyro.protocol
 import Pyro.util
 from Pyro.errors import PyroError,NamingError
 
-__all__ = ['map_parallel']
+__all__ = ['map_parallel','start_seppo_enslaved_server']
 
 Pyro.config.PYRO_MOBILE_CODE = True
 Pyro.config.PYRO_MULTITHREADED = 0 # We do the multithreading around here...
